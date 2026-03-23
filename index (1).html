@@ -1,0 +1,181 @@
+<!DOCTYPE html> 
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Choir Attendance">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png" type="image/png">
+<meta name="theme-color" content="#0b5ed7">
+<meta name="description" content="Offline-capable choir attendance tracker">
+<script>
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/service-worker.js').then(reg => {
+      console.log('Service Worker registered:', reg);
+    }).catch(err => {
+      console.log('Service Worker registration failed:', err);
+    });
+  }
+</script>
+<title>Choir Attendance</title>
+<style>
+  body { font-family: 'Segoe UI', sans-serif; background: #f7fafc; padding: 10px; }
+  h1 { text-align: center; color: #0b5ed7; }
+  table {
+    width: 100%; border-collapse: collapse; background: #fff;
+    margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    border-radius: 6px; overflow: hidden;
+  }
+  th, td { border: 1px solid #e2e8f0; padding: 6px 8px; text-align: center; }
+  th { background: #e9ecef; }
+  td:first-child { text-align: left; }
+  button {
+    background: #0b5ed7; color: white; border: none;
+    border-radius: 6px; padding: 10px 15px; margin: 5px;
+  }
+  button:hover { background: #084298; }
+  pre {
+    background: #fff; padding: 10px; border-radius: 6px;
+    white-space: pre-wrap; box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  }
+</style>
+</head>
+<body>
+<h1>Choir Attendance</h1>
+<div style="text-align:center; margin-bottom:10px;">
+  <strong>Date:</strong> <span id="todayDate"></span>
+</div>
+<div id="attendance-container"></div>
+<div style="text-align:center;">
+  <button onclick="generateReport()">Generate & Save Report</button>
+  <button onclick="location.href='summary.html'">📊 View Summary</button>
+  <button onclick="location.href='edit_member.html'">✏️ Edit Members</button>
+</div>
+<h2>Generated Report</h2>
+<pre id="report"></pre>
+<button id="copyBtn" style="display:none;" onclick="copyReport()">📋 Copy Report</button>
+<script>
+function loadChoirGroups() {
+  const stored = localStorage.getItem("choirGroups");
+  if (stored) return JSON.parse(stored);
+  return {
+    Tenor: ["Muange","Victor","Kennah","Paul","Agao","Karani","Derrick","N"],
+    Alto: ["Eliza","Faith","Fiona","Hellen","Vero","Milah","Irine","Alivitsa","Mwende","Eva"],
+    SOP: ["Gloria","Catherine","Monica","Kajuju","Mourine","Gabby","Liz","Mary","Neema","Lydia","Tess","Lavenda"],
+    Bass: ["Pk","Bryson","Johnpaul","Ken","Sospeter","Victor","Robin","Franklin"]
+  };
+}
+// Get today's date
+const today = new Date().toISOString().split("T")[0];
+document.getElementById("todayDate").textContent = today;
+// Key for today's attendance storage
+const STORAGE_KEY = `attendance_${today}`;
+const choirGroups = loadChoirGroups();
+const container = document.getElementById("attendance-container");
+let globalIndex = 1;
+// Load saved attendance for today (if any)
+const savedAttendance = JSON.parse(localStorage.getItem(STORAGE_KEY)) || {};
+for (const [section, members] of Object.entries(choirGroups)) {
+  const h2 = document.createElement("h2");
+  h2.textContent = section;
+  container.appendChild(h2);
+  const table = document.createElement("table");
+  table.innerHTML = `
+    <thead><tr><th>Name</th><th>Present</th><th>Apology</th></tr></thead>
+    <tbody></tbody>`;
+  const tbody = table.querySelector("tbody");
+  members.forEach(name => {
+    const id = `${section}_${name}`.replace(/\s+/g, "_");
+    const row = document.createElement("tr");
+    const presentChecked = savedAttendance[id] === "present";
+    const apologyChecked = savedAttendance[id] === "apology";
+    row.innerHTML = `
+      <td>${globalIndex}. ${name}</td>
+      <td><input type="checkbox" id="present-${id}" ${presentChecked ? "checked" : ""} onchange="toggleCheck('${id}', 'present')"></td>
+      <td><input type="checkbox" id="apology-${id}" ${apologyChecked ? "checked" : ""} onchange="toggleCheck('${id}', 'apology')"></td>`;
+    tbody.appendChild(row);
+    globalIndex++;
+  });
+  container.appendChild(table);
+}
+function toggleCheck(id, type) {
+  const presentBox = document.getElementById(`present-${id}`);
+  const apologyBox = document.getElementById(`apology-${id}`);
+  if (type === 'present') {
+    apologyBox.checked = false;
+    saveState(id, presentBox.checked ? "present" : "absent");
+  } else {
+    presentBox.checked = false;
+    saveState(id, apologyBox.checked ? "apology" : "absent");
+  }
+}
+function saveState(id, status) {
+  const data = JSON.parse(localStorage.getItem(STORAGE_KEY)) || {};
+  if (status === "absent") delete data[id];
+  else data[id] = status;
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+}
+function generateReport() {
+  let report = `Choir Attendance (${today})\n`;
+  let apologyList = [];
+  let attendanceData = [];
+  const data = JSON.parse(localStorage.getItem(STORAGE_KEY)) || {};
+  for (const [section, members] of Object.entries(choirGroups)) {
+    report += `\n${section}\n`;
+    let sectionCount = 1;
+    members.forEach(name => {
+      const id = `${section}_${name}`.replace(/\s+/g, "_");
+      const status = data[id] || "absent";
+      attendanceData.push({ section, name, status });
+      if (status === "present") {
+        report += `${sectionCount}. ${name}\n`;
+        sectionCount++;
+      } else if (status === "apology") {
+        apologyList.push(name);
+      }
+    });
+  }
+  report += `\nApologies\n`;
+  apologyList.forEach((n, i) => report += `${i + 1}. ${n}\n`);
+  document.getElementById("report").textContent = report;
+  document.getElementById("copyBtn").style.display = "block";
+  saveAttendance(today, attendanceData); // Save remotely too
+}
+function copyReport() {
+  const text = document.getElementById("report").textContent;
+  const btn = document.getElementById("copyBtn");
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(() => {
+      btn.textContent = "✅ Copied!";
+      setTimeout(() => btn.textContent = "📋 Copy Report", 2000);
+    }).catch(err => alert("Clipboard error: " + err));
+  } else {
+    const textarea = document.createElement("textarea");
+    textarea.value = text;
+    document.body.appendChild(textarea);
+    textarea.select();
+    document.execCommand("copy");
+    document.body.removeChild(textarea);
+    btn.textContent = "✅ Copied!";
+    setTimeout(() => btn.textContent = "📋 Copy Report", 2000);
+  }
+}
+async function saveAttendance(date, records) {
+  const res = await fetch("https://script.google.com/macros/s/AKfycbzbOWDOUr4Vk5bvyL3VG_BCPr2slVOrLeivM1JlwY_tuUzBzD6JG_q4cODycuLrZ1MQ/exec", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(records)
+  });
+  const result = await res.json();
+  console.log("Saved to Google Sheets:", result);
+}
+// ✅ Optional: clear old records (previous dates) automatically
+Object.keys(localStorage).forEach(k => {
+  if (k.startsWith("attendance_") && k !== STORAGE_KEY) localStorage.removeItem(k);
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Choir Attendance">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png" type="image/png">
+<meta name="theme-color" content="#0b5ed7">
+<script>
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/service-worker.js').then(reg => {
+      console.log('Service Worker registered:', reg);
+    }).catch(err => {
+      console.log('Service Worker registration failed:', err);
+    });
+  }
+</script>
+<title>Attendance Summary</title>
+<style>
+  body { font-family: 'Segoe UI', sans-serif; background: #f7fafc; padding: 10px; }
+  h1 { text-align: center; color: #0b5ed7; }
+  table {
+    width: 100%; border-collapse: collapse; background: #fff;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    border-radius: 6px; overflow: hidden; margin-bottom: 20px;
+  }
+  th, td { border: 1px solid #e2e8f0; padding: 6px 8px; text-align: center; }
+  th { background: #e9ecef; }
+  td:first-child { text-align: left; }
+  button { background: #0b5ed7; color: white; border: none; border-radius: 6px; padding: 10px 15px; margin: 5px; }
+  button:hover { background: #084298; }
+  @media print {
+    button, input, select { display: none !important; }
+    body { background: white; }
+  }
+</style>
+</head>
+<body>
+<h1>Attendance Summary</h1>
+<div style="text-align:center; margin-bottom:10px;">
+  <label>Start Date: <input type="date" id="startDate"></label>
+  <label>End Date: <input type="date" id="endDate"></label>
+  <button onclick="generateSummary()">Generate Summary</button>
+  <button onclick="window.print()">🖨️ Export as PDF</button>
+  <button onclick="location.href='index.html'">⬅️ Back</button>
+</div>
+<div id="summary"></div>
+<script>
+function loadChoirGroups() {
+  const stored = localStorage.getItem("choirGroups");
+  return stored ? JSON.parse(stored) : {};
+}
+function generateSummary() {
+  const start = document.getElementById("startDate").value;
+  const end = document.getElementById("endDate").value;
+  if (!start || !end) return alert("Select both dates!");
+  const records = JSON.parse(localStorage.getItem("attendanceRecords") || "[]");
+  const choirGroups = loadChoirGroups();
+  const filtered = records.filter(r => r.date >= start && r.date <= end);
+  if (filtered.length === 0) {
+    document.getElementById("summary").innerHTML = "<p>No records found in this range.</p>";
+    return;
+  }
+  const summaryData = {};
+  for (const [section, members] of Object.entries(choirGroups)) {
+    summaryData[section] = {};
+    members.forEach(name => summaryData[section][name] = {present:0, apology:0, absent:0});
+  }
+  filtered.forEach(day => {
+    day.records.forEach(r => {
+      if (summaryData[r.section]?.[r.name]) {
+        summaryData[r.section][r.name][r.status]++;
+      }
+    });
+  });
+  let html = `<p><strong>Period:</strong> ${start} → ${end}</p>`;
+  for (const [section, members] of Object.entries(summaryData)) {
+    html += `<h2>${section}</h2><table><tr><th>Name</th><th>Present %</th><th>Apology %</th><th>Absent %</th></tr>`;
+    const totalDays = filtered.length;
+    for (const [name, counts] of Object.entries(members)) {
+      const presentPct = ((counts.present / totalDays) * 100).toFixed(1);
+      const apologyPct = ((counts.apology / totalDays) * 100).toFixed(1);
+      const absentPct = ((counts.absent / totalDays) * 100).toFixed(1);
+      html += `<tr><td>${name}</td><td>${presentPct}%</td><td>${apologyPct}%</td><td>${absentPct}%</td></tr>`;
+    }
+    html += "</table><br>";
+  }
+  document.getElementById("summary").innerHTML = html;
+}
+</script>
+</body>
+</html>
