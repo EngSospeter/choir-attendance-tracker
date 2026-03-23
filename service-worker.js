@@ -1,112 +1,93 @@
-const CACHE_NAME = 'choir-attendance-v1';
+const CACHE_NAME = 'choir-attendance-v2';
+
+const BASE = '/choir-attendance-tracker';
+
 const urlsToCache = [
-  '/',
-  '/index.html',
-  '/edit_member.html',
-  '/summary.html',
-  '/manifest.json',
-  '/service-worker.js'
+  `${BASE}/`,
+  `${BASE}/index.html`,
+  `${BASE}/edit_member.html`,
+  `${BASE}/summary.html`,
+  `${BASE}/manifest.json`,
+  `${BASE}/service-worker.js`
 ];
 
-// Install Service Worker
+// INSTALL
 self.addEventListener('install', event => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then(cache => {
-      console.log('Cache opened');
-      return cache.addAll(urlsToCache);
-    }).catch(err => {
-      console.log('Cache failed:', err);
-    })
+    caches.open(CACHE_NAME).then(cache => cache.addAll(urlsToCache))
   );
-  self.skipWaiting(); // Activate immediately
+  self.skipWaiting();
 });
 
-// Activate Service Worker
+// ACTIVATE
 self.addEventListener('activate', event => {
   event.waitUntil(
-    caches.keys().then(cacheNames => {
-      return Promise.all(
-        cacheNames.map(cacheName => {
-          if (cacheName !== CACHE_NAME) {
-            console.log('Deleting old cache:', cacheName);
-            return caches.delete(cacheName);
-          }
-        })
-      );
-    })
+    caches.keys().then(keys =>
+      Promise.all(
+        keys.map(k => k !== CACHE_NAME ? caches.delete(k) : null)
+      )
+    )
   );
   self.clients.claim();
 });
 
-// Fetch Event - Network first, fallback to cache
+// FETCH
 self.addEventListener('fetch', event => {
-  // Skip non-GET requests
-  if (event.request.method !== 'GET') {
-    return;
-  }
 
-  // For Google Sheets API calls, try network first
+  if (event.request.method !== 'GET') return;
+
+  // Google Sheets → network first
   if (event.request.url.includes('script.google.com')) {
     event.respondWith(
-      fetch(event.request).catch(() => {
-        // Offline - return a simple response
-        return new Response(JSON.stringify({success: false, message: 'Offline - data will sync when online'}), {
-          headers: {'Content-Type': 'application/json'}
-        });
-      })
+      fetch(event.request).catch(() =>
+        new Response(JSON.stringify({ success: false }), {
+          headers: { 'Content-Type': 'application/json' }
+        })
+      )
     );
     return;
   }
 
-  // For all other requests, try cache first, then network
+  // Cache first
   event.respondWith(
-    caches.match(event.request).then(response => {
-      if (response) {
-        return response;
-      }
-      return fetch(event.request).then(response => {
-        // Don't cache non-successful responses
-        if (!response || response.status !== 200 || response.type === 'error') {
-          return response;
-        }
-        // Clone the response
-        const responseToCache = response.clone();
-        caches.open(CACHE_NAME).then(cache => {
-          cache.put(event.request, responseToCache);
-        });
-        return response;
-      }).catch(() => {
-        // Return a fallback page if offline
-        return caches.match('/index.html');
-      });
-    })
+    caches.match(event.request).then(res =>
+      res || fetch(event.request).then(fetchRes => {
+        if (!fetchRes || fetchRes.status !== 200) return fetchRes;
+
+        const clone = fetchRes.clone();
+        caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
+
+        return fetchRes;
+      }).catch(() => caches.match(`${BASE}/index.html`))
+    )
   );
 });
 
-// Background Sync for Google Sheets (when back online)
+// BACKGROUND SYNC
 self.addEventListener('sync', event => {
   if (event.tag === 'sync-attendance') {
-    event.waitUntil(syncAttendance());
+    event.waitUntil(syncData());
   }
 });
 
-async function syncAttendance() {
-  try {
-    const pendingData = JSON.parse(localStorage.getItem('pendingSyncData') || '[]');
-    if (pendingData.length === 0) return;
+async function syncData() {
+  const pending = JSON.parse(localStorage.getItem('pendingSyncData') || '[]');
 
-    for (const data of pendingData) {
-      const res = await fetch('https://script.google.com/macros/s/AKfycbzbOWDOUr4Vk5bvyL3VG_BCPr2slVOrLeivM1JlwY_tuUzBzD6JG_q4cODycuLrZ1MQ/exec', {
+  for (let i = 0; i < pending.length; i++) {
+    try {
+      await fetch('https://script.google.com/macros/s/AKfycbzbOWDOUr4Vk5bvyL3VG_BCPr2slVOrLeivM1JlwY_tuUzBzD6JG_q4cODycuLrZ1MQ/exec', {
         method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify(data)
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(pending[i].records)
       });
-      if (res.ok) {
-        pendingData.shift();
-      }
+
+      pending.splice(i, 1);
+      i--;
+
+    } catch (err) {
+      break;
     }
-    localStorage.setItem('pendingSyncData', JSON.stringify(pendingData));
-  } catch (err) {
-    console.log('Sync error:', err);
   }
+
+  localStorage.setItem('pendingSyncData', JSON.stringify(pending));
 }
