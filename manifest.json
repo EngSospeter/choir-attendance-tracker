@@ -1,24 +1,24 @@
 {
   "name": "Choir Attendance Tracker",
   "short_name": "Choir Attendance",
-  "description": "Track and manage choir member attendance with offline support",
-  "start_url": "/index.html",
+  "start_url": "/choir-attendance-tracker/index.html",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#0b5ed7",
-  "scope": "/",
+  "scope": "/choir-attendance-tracker/",
+  "orientation": "portrait-primary",
+  "categories": ["productivity"],
+
   "icons": [
     {
       "src": "icon-192.png",
       "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any"
+      "type": "image/png"
     },
     {
       "src": "icon-512.png",
       "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any"
+      "type": "image/png"
     },
     {
       "src": "icon-maskable-192.png",
@@ -33,6 +33,7 @@
       "purpose": "maskable"
     }
   ],
+
   "screenshots": [
     {
       "src": "screenshot-1.png",
@@ -47,14 +48,13 @@
       "form_factor": "wide"
     }
   ],
-  "categories": ["productivity"],
-  "orientation": "portrait-primary",
+
   "shortcuts": [
     {
       "name": "Take Attendance",
       "short_name": "Attendance",
       "description": "Quick access to attendance marking",
-      "url": "/index.html",
+      "url": "/choir-attendance-tracker/index.html",
       "icons": [
         {
           "src": "icon-192.png",
@@ -66,7 +66,7 @@
       "name": "View Summary",
       "short_name": "Summary",
       "description": "View attendance summary reports",
-      "url": "/summary.html",
+      "url": "/choir-attendance-tracker/summary.html",
       "icons": [
         {
           "src": "icon-192.png",
