@@ -12,13 +12,25 @@
 <meta name="theme-color" content="#0b5ed7">
 <meta name="description" content="Offline-capable choir attendance tracker">
 <script>
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/service-worker.js').then(reg => {
-      console.log('Service Worker registered:', reg);
-    }).catch(err => {
-      console.log('Service Worker registration failed:', err);
+async function saveAttendance(date, records) {
+  try {
+    const res = await fetch("https://script.google.com/macros/s/AKfycbzbOWDOUr4Vk5bvyL3VG_BCPr2slVOrLeivM1JlwY_tuUzBzD6JG_q4cODycuLrZ1MQ/exec", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(records)
     });
+
+    const result = await res.json();
+    console.log("Saved online:", result);
+
+  } catch (err) {
+    console.log("Offline → saving locally");
+
+    let pending = JSON.parse(localStorage.getItem('pendingSyncData') || '[]');
+    pending.push({ date, records });
+    localStorage.setItem('pendingSyncData', JSON.stringify(pending));
   }
+}
 </script>
 <title>Choir Attendance</title>
 <style>
